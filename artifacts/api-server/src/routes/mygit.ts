@@ -8,43 +8,26 @@ import {
   GetCommitDiffParams,
 } from "@workspace/api-zod";
 import {
-  initRepo,
-  isInitialized,
-  readHead,
-  readBranch,
-  readIndex,
-  stageFile,
-  listWorkingFiles,
-  readWorkingFile,
-  writeWorkingFile,
-  createCommit,
-  getLog,
-  checkoutCommit,
+  initRepoDb,
+  isInitializedDb,
+  getStatusDb,
+  listFilesDb,
+  getFileDb,
+  saveFileDb,
+  stageFileDb,
+  createCommitDb,
+  getLogDb,
+  checkoutCommitDb,
   getCommitDiff,
-} from "../lib/mygitFs";
+} from "../lib/mygitDb";
 
 const router = Router();
 
 // GET /api/mygit/status
 router.get("/mygit/status", async (req, res) => {
   try {
-    const initialized = await isInitialized();
-    if (!initialized) {
-      return res.json({
-        initialized: false,
-        head: "none",
-        branch: "main",
-        staged: [],
-        files: [],
-      });
-    }
-    const [head, branch, staged, files] = await Promise.all([
-      readHead(),
-      readBranch(),
-      readIndex(),
-      listWorkingFiles(),
-    ]);
-    return res.json({ initialized, head, branch, staged, files });
+    const status = await getStatusDb();
+    return res.json(status);
   } catch (err) {
     req.log.error({ err }, "Failed to get repo status");
     return res.status(500).json({ error: "Internal server error" });
@@ -54,18 +37,12 @@ router.get("/mygit/status", async (req, res) => {
 // POST /api/mygit/init
 router.post("/mygit/init", async (req, res) => {
   try {
-    const initialized = await isInitialized();
+    const initialized = await isInitializedDb();
     if (initialized) {
-      return res.json({
-        success: false,
-        message: "Repository already initialized.",
-      });
+      return res.json({ success: false, message: "Repository already initialized." });
     }
-    await initRepo();
-    return res.json({
-      success: true,
-      message: "Initialized empty mygit repository.",
-    });
+    await initRepoDb();
+    return res.json({ success: true, message: "Initialized empty mygit repository." });
   } catch (err) {
     req.log.error({ err }, "Failed to init repo");
     return res.status(500).json({ error: "Internal server error" });
@@ -75,13 +52,7 @@ router.post("/mygit/init", async (req, res) => {
 // GET /api/mygit/files
 router.get("/mygit/files", async (req, res) => {
   try {
-    const filenames = await listWorkingFiles();
-    const files = await Promise.all(
-      filenames.map(async (name) => {
-        const content = await readWorkingFile(name).catch(() => "");
-        return { path: name, content, size: Buffer.byteLength(content, "utf-8") };
-      }),
-    );
+    const files = await listFilesDb();
     return res.json({ files });
   } catch (err) {
     req.log.error({ err }, "Failed to list files");
@@ -92,11 +63,9 @@ router.get("/mygit/files", async (req, res) => {
 // GET /api/mygit/file?path=...
 router.get("/mygit/file", async (req, res) => {
   const parsed = GetFileQueryParams.safeParse(req.query);
-  if (!parsed.success) {
-    return res.status(400).json({ error: "path query param required" });
-  }
+  if (!parsed.success) return res.status(400).json({ error: "path query param required" });
   try {
-    const content = await readWorkingFile(parsed.data.path);
+    const content = await getFileDb(parsed.data.path);
     return res.json({ path: parsed.data.path, content });
   } catch {
     return res.status(404).json({ error: "File not found" });
@@ -106,11 +75,9 @@ router.get("/mygit/file", async (req, res) => {
 // PUT /api/mygit/file
 router.put("/mygit/file", async (req, res) => {
   const parsed = SaveFileBody.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: "path and content required" });
-  }
+  if (!parsed.success) return res.status(400).json({ error: "path and content required" });
   try {
-    await writeWorkingFile(parsed.data.path, parsed.data.content);
+    await saveFileDb(parsed.data.path, parsed.data.content);
     return res.json({ success: true, message: `Saved ${parsed.data.path}` });
   } catch (err) {
     req.log.error({ err }, "Failed to save file");
@@ -121,15 +88,10 @@ router.put("/mygit/file", async (req, res) => {
 // POST /api/mygit/add
 router.post("/mygit/add", async (req, res) => {
   const parsed = AddFileBody.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: "filename required" });
-  }
+  if (!parsed.success) return res.status(400).json({ error: "filename required" });
   try {
-    await stageFile(parsed.data.filename);
-    return res.json({
-      success: true,
-      message: `Staged: ${parsed.data.filename}`,
-    });
+    await stageFileDb(parsed.data.filename);
+    return res.json({ success: true, message: `Staged: ${parsed.data.filename}` });
   } catch (err) {
     req.log.error({ err }, "Failed to stage file");
     return res.status(400).json({
@@ -141,16 +103,10 @@ router.post("/mygit/add", async (req, res) => {
 // POST /api/mygit/commit
 router.post("/mygit/commit", async (req, res) => {
   const parsed = CreateCommitBody.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: "message required" });
-  }
+  if (!parsed.success) return res.status(400).json({ error: "message required" });
   try {
-    const commitId = await createCommit(parsed.data.message);
-    return res.json({
-      success: true,
-      commitId,
-      message: `[${commitId.slice(0, 8)}] ${parsed.data.message}`,
-    });
+    const commitId = await createCommitDb(parsed.data.message);
+    return res.json({ success: true, commitId, message: `[${commitId.slice(0, 8)}] ${parsed.data.message}` });
   } catch (err) {
     req.log.error({ err }, "Failed to create commit");
     return res.status(400).json({
@@ -164,9 +120,8 @@ router.post("/mygit/commit", async (req, res) => {
 // GET /api/mygit/log
 router.get("/mygit/log", async (req, res) => {
   try {
-    const commits = await getLog();
-    const head = await readHead();
-    return res.json({ commits, head });
+    const result = await getLogDb();
+    return res.json(result);
   } catch (err) {
     req.log.error({ err }, "Failed to get log");
     return res.status(500).json({ error: "Internal server error" });
@@ -176,29 +131,20 @@ router.get("/mygit/log", async (req, res) => {
 // POST /api/mygit/checkout
 router.post("/mygit/checkout", async (req, res) => {
   const parsed = CheckoutCommitBody.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: "commitId required" });
-  }
+  if (!parsed.success) return res.status(400).json({ error: "commitId required" });
   try {
-    await checkoutCommit(parsed.data.commitId);
-    return res.json({
-      success: true,
-      message: `Checked out commit ${parsed.data.commitId.slice(0, 8)}`,
-    });
+    await checkoutCommitDb(parsed.data.commitId);
+    return res.json({ success: true, message: `Checked out ${parsed.data.commitId.slice(0, 8)}` });
   } catch (err) {
     req.log.error({ err }, "Failed to checkout");
-    return res.status(400).json({
-      error: err instanceof Error ? err.message : "Checkout failed",
-    });
+    return res.status(400).json({ error: err instanceof Error ? err.message : "Checkout failed" });
   }
 });
 
 // GET /api/mygit/diff/:commitId
 router.get("/mygit/diff/:commitId", async (req, res) => {
   const parsed = GetCommitDiffParams.safeParse(req.params);
-  if (!parsed.success) {
-    return res.status(400).json({ error: "commitId required" });
-  }
+  if (!parsed.success) return res.status(400).json({ error: "commitId required" });
   try {
     const diff = await getCommitDiff(parsed.data.commitId);
     return res.json(diff);
