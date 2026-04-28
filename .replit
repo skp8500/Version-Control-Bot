@@ -11,6 +11,26 @@ env = { "CI" = "true" }
 [workflows]
 runButton = "Project"
 
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "mygit: build & run"
+
+[[workflows.workflow]]
+name = "mygit: build & run"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd mygit && make && echo '' && bash demo.sh && echo '' && echo '► mygit is ready. Open the Shell tab and run:' && echo '    export PATH=\"$PATH:/home/runner/workspace/mygit\"' && echo '    cd /tmp && mkdir myrepo && cd myrepo && mygit init' && echo '' && echo 'Watching for source changes...' && while true; do inotifywait -qre modify,create,delete commands/ ai/ utils/ main.cpp 2>/dev/null && echo 'Rebuilding...' && make -s && echo 'Rebuilt OK'; sleep 2; done"
+
+[workflows.workflow.metadata]
+outputType = "console"
+
 [agent]
 stack = "PNPM_WORKSPACE"
 expertMode = true
