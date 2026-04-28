@@ -5,18 +5,35 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type {
+  MutationFunction,
   QueryFunction,
   QueryKey,
+  UseMutationOptions,
+  UseMutationResult,
   UseQueryOptions,
   UseQueryResult,
 } from "@tanstack/react-query";
 
-import type { HealthStatus } from "./api.schemas";
+import type {
+  AddFileRequest,
+  CheckoutRequest,
+  CommandResult,
+  CommitDiff,
+  CommitLog,
+  CommitRequest,
+  CommitResult,
+  FileContent,
+  FileList,
+  GetFileParams,
+  HealthStatus,
+  RepoStatus,
+  SaveFileRequest,
+} from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
-import type { ErrorType } from "../custom-fetch";
+import type { ErrorType, BodyType } from "../custom-fetch";
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -25,7 +42,6 @@ type Awaited<O> = O extends AwaitedInput<infer T> ? T : never;
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 /**
- * Returns server health status
  * @summary Health check
  */
 export const getHealthCheckUrl = () => {
@@ -92,6 +108,808 @@ export function useHealthCheck<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getHealthCheckQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Returns HEAD, staged files, and working directory files
+ * @summary Get repository status
+ */
+export const getGetRepoStatusUrl = () => {
+  return `/api/mygit/status`;
+};
+
+export const getRepoStatus = async (
+  options?: RequestInit,
+): Promise<RepoStatus> => {
+  return customFetch<RepoStatus>(getGetRepoStatusUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetRepoStatusQueryKey = () => {
+  return [`/api/mygit/status`] as const;
+};
+
+export const getGetRepoStatusQueryOptions = <
+  TData = Awaited<ReturnType<typeof getRepoStatus>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getRepoStatus>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetRepoStatusQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getRepoStatus>>> = ({
+    signal,
+  }) => getRepoStatus({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getRepoStatus>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetRepoStatusQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getRepoStatus>>
+>;
+export type GetRepoStatusQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get repository status
+ */
+
+export function useGetRepoStatus<
+  TData = Awaited<ReturnType<typeof getRepoStatus>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getRepoStatus>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetRepoStatusQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Initialize a new mygit repository
+ */
+export const getInitRepoUrl = () => {
+  return `/api/mygit/init`;
+};
+
+export const initRepo = async (
+  options?: RequestInit,
+): Promise<CommandResult> => {
+  return customFetch<CommandResult>(getInitRepoUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getInitRepoMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof initRepo>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof initRepo>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["initRepo"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof initRepo>>,
+    void
+  > = () => {
+    return initRepo(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type InitRepoMutationResult = NonNullable<
+  Awaited<ReturnType<typeof initRepo>>
+>;
+
+export type InitRepoMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Initialize a new mygit repository
+ */
+export const useInitRepo = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof initRepo>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof initRepo>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getInitRepoMutationOptions(options));
+};
+
+/**
+ * @summary List all files in the working directory
+ */
+export const getListFilesUrl = () => {
+  return `/api/mygit/files`;
+};
+
+export const listFiles = async (options?: RequestInit): Promise<FileList> => {
+  return customFetch<FileList>(getListFilesUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListFilesQueryKey = () => {
+  return [`/api/mygit/files`] as const;
+};
+
+export const getListFilesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listFiles>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof listFiles>>, TError, TData>;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListFilesQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listFiles>>> = ({
+    signal,
+  }) => listFiles({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listFiles>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListFilesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listFiles>>
+>;
+export type ListFilesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List all files in the working directory
+ */
+
+export function useListFiles<
+  TData = Awaited<ReturnType<typeof listFiles>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof listFiles>>, TError, TData>;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListFilesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get contents of a file
+ */
+export const getGetFileUrl = (params: GetFileParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/mygit/file?${stringifiedParams}`
+    : `/api/mygit/file`;
+};
+
+export const getFile = async (
+  params: GetFileParams,
+  options?: RequestInit,
+): Promise<FileContent> => {
+  return customFetch<FileContent>(getGetFileUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetFileQueryKey = (params?: GetFileParams) => {
+  return [`/api/mygit/file`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetFileQueryOptions = <
+  TData = Awaited<ReturnType<typeof getFile>>,
+  TError = ErrorType<unknown>,
+>(
+  params: GetFileParams,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof getFile>>, TError, TData>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetFileQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getFile>>> = ({
+    signal,
+  }) => getFile(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getFile>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetFileQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getFile>>
+>;
+export type GetFileQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get contents of a file
+ */
+
+export function useGetFile<
+  TData = Awaited<ReturnType<typeof getFile>>,
+  TError = ErrorType<unknown>,
+>(
+  params: GetFileParams,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof getFile>>, TError, TData>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetFileQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Save (create or update) a file
+ */
+export const getSaveFileUrl = () => {
+  return `/api/mygit/file`;
+};
+
+export const saveFile = async (
+  saveFileRequest: SaveFileRequest,
+  options?: RequestInit,
+): Promise<CommandResult> => {
+  return customFetch<CommandResult>(getSaveFileUrl(), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(saveFileRequest),
+  });
+};
+
+export const getSaveFileMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof saveFile>>,
+    TError,
+    { data: BodyType<SaveFileRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof saveFile>>,
+  TError,
+  { data: BodyType<SaveFileRequest> },
+  TContext
+> => {
+  const mutationKey = ["saveFile"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof saveFile>>,
+    { data: BodyType<SaveFileRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return saveFile(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SaveFileMutationResult = NonNullable<
+  Awaited<ReturnType<typeof saveFile>>
+>;
+export type SaveFileMutationBody = BodyType<SaveFileRequest>;
+export type SaveFileMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Save (create or update) a file
+ */
+export const useSaveFile = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof saveFile>>,
+    TError,
+    { data: BodyType<SaveFileRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof saveFile>>,
+  TError,
+  { data: BodyType<SaveFileRequest> },
+  TContext
+> => {
+  return useMutation(getSaveFileMutationOptions(options));
+};
+
+/**
+ * @summary Stage a file
+ */
+export const getAddFileUrl = () => {
+  return `/api/mygit/add`;
+};
+
+export const addFile = async (
+  addFileRequest: AddFileRequest,
+  options?: RequestInit,
+): Promise<CommandResult> => {
+  return customFetch<CommandResult>(getAddFileUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(addFileRequest),
+  });
+};
+
+export const getAddFileMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addFile>>,
+    TError,
+    { data: BodyType<AddFileRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof addFile>>,
+  TError,
+  { data: BodyType<AddFileRequest> },
+  TContext
+> => {
+  const mutationKey = ["addFile"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof addFile>>,
+    { data: BodyType<AddFileRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return addFile(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AddFileMutationResult = NonNullable<
+  Awaited<ReturnType<typeof addFile>>
+>;
+export type AddFileMutationBody = BodyType<AddFileRequest>;
+export type AddFileMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Stage a file
+ */
+export const useAddFile = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addFile>>,
+    TError,
+    { data: BodyType<AddFileRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof addFile>>,
+  TError,
+  { data: BodyType<AddFileRequest> },
+  TContext
+> => {
+  return useMutation(getAddFileMutationOptions(options));
+};
+
+/**
+ * @summary Commit staged files
+ */
+export const getCreateCommitUrl = () => {
+  return `/api/mygit/commit`;
+};
+
+export const createCommit = async (
+  commitRequest: CommitRequest,
+  options?: RequestInit,
+): Promise<CommitResult> => {
+  return customFetch<CommitResult>(getCreateCommitUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(commitRequest),
+  });
+};
+
+export const getCreateCommitMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createCommit>>,
+    TError,
+    { data: BodyType<CommitRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createCommit>>,
+  TError,
+  { data: BodyType<CommitRequest> },
+  TContext
+> => {
+  const mutationKey = ["createCommit"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createCommit>>,
+    { data: BodyType<CommitRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createCommit(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateCommitMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createCommit>>
+>;
+export type CreateCommitMutationBody = BodyType<CommitRequest>;
+export type CreateCommitMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Commit staged files
+ */
+export const useCreateCommit = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createCommit>>,
+    TError,
+    { data: BodyType<CommitRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createCommit>>,
+  TError,
+  { data: BodyType<CommitRequest> },
+  TContext
+> => {
+  return useMutation(getCreateCommitMutationOptions(options));
+};
+
+/**
+ * @summary Get full commit history
+ */
+export const getGetLogUrl = () => {
+  return `/api/mygit/log`;
+};
+
+export const getLog = async (options?: RequestInit): Promise<CommitLog> => {
+  return customFetch<CommitLog>(getGetLogUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetLogQueryKey = () => {
+  return [`/api/mygit/log`] as const;
+};
+
+export const getGetLogQueryOptions = <
+  TData = Awaited<ReturnType<typeof getLog>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof getLog>>, TError, TData>;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetLogQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getLog>>> = ({
+    signal,
+  }) => getLog({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getLog>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetLogQueryResult = NonNullable<Awaited<ReturnType<typeof getLog>>>;
+export type GetLogQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get full commit history
+ */
+
+export function useGetLog<
+  TData = Awaited<ReturnType<typeof getLog>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof getLog>>, TError, TData>;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetLogQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Restore working directory to a commit snapshot
+ */
+export const getCheckoutCommitUrl = () => {
+  return `/api/mygit/checkout`;
+};
+
+export const checkoutCommit = async (
+  checkoutRequest: CheckoutRequest,
+  options?: RequestInit,
+): Promise<CommandResult> => {
+  return customFetch<CommandResult>(getCheckoutCommitUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(checkoutRequest),
+  });
+};
+
+export const getCheckoutCommitMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof checkoutCommit>>,
+    TError,
+    { data: BodyType<CheckoutRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof checkoutCommit>>,
+  TError,
+  { data: BodyType<CheckoutRequest> },
+  TContext
+> => {
+  const mutationKey = ["checkoutCommit"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof checkoutCommit>>,
+    { data: BodyType<CheckoutRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return checkoutCommit(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CheckoutCommitMutationResult = NonNullable<
+  Awaited<ReturnType<typeof checkoutCommit>>
+>;
+export type CheckoutCommitMutationBody = BodyType<CheckoutRequest>;
+export type CheckoutCommitMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Restore working directory to a commit snapshot
+ */
+export const useCheckoutCommit = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof checkoutCommit>>,
+    TError,
+    { data: BodyType<CheckoutRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof checkoutCommit>>,
+  TError,
+  { data: BodyType<CheckoutRequest> },
+  TContext
+> => {
+  return useMutation(getCheckoutCommitMutationOptions(options));
+};
+
+/**
+ * @summary Get file diffs for a commit vs its parent
+ */
+export const getGetCommitDiffUrl = (commitId: string) => {
+  return `/api/mygit/diff/${commitId}`;
+};
+
+export const getCommitDiff = async (
+  commitId: string,
+  options?: RequestInit,
+): Promise<CommitDiff> => {
+  return customFetch<CommitDiff>(getGetCommitDiffUrl(commitId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetCommitDiffQueryKey = (commitId: string) => {
+  return [`/api/mygit/diff/${commitId}`] as const;
+};
+
+export const getGetCommitDiffQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCommitDiff>>,
+  TError = ErrorType<unknown>,
+>(
+  commitId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCommitDiff>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetCommitDiffQueryKey(commitId);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getCommitDiff>>> = ({
+    signal,
+  }) => getCommitDiff(commitId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!commitId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCommitDiff>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetCommitDiffQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCommitDiff>>
+>;
+export type GetCommitDiffQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get file diffs for a commit vs its parent
+ */
+
+export function useGetCommitDiff<
+  TData = Awaited<ReturnType<typeof getCommitDiff>>,
+  TError = ErrorType<unknown>,
+>(
+  commitId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCommitDiff>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetCommitDiffQueryOptions(commitId, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

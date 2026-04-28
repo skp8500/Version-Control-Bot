@@ -1,0 +1,154 @@
+You are a senior full-stack engineer.
+
+Your task is to convert my C++ CLI-based version control system ("mygit") into a fully functional web application.
+
+## PROJECT CONTEXT
+
+The current system is a CLI tool written in C++17 that implements:
+
+* init
+* add
+* commit
+* log
+* checkout
+
+It uses a `.mygit/` folder to store:
+
+* commits/
+* index (staging area)
+* HEAD
+
+Each commit stores:
+
+* files snapshot
+* message
+* timestamp
+* parent
+
+## GOAL
+
+Transform this into a web-based version control system with:
+
+* A modern frontend UI
+* A backend API that replicates CLI functionality
+* Real-time feedback (like GitHub UI)
+
+---
+
+## TECH STACK (STRICT)
+
+Frontend:
+
+* React (with Vite or Next.js)
+* Tailwind CSS
+
+Backend:
+
+* Node.js + Express
+
+Storage:
+
+* File system (same `.mygit` logic, DO NOT use database)
+
+---
+
+## FEATURES TO BUILD
+
+### 1. Repository Dashboard
+
+* Show all files
+* Show current HEAD
+* Show commit history
+
+### 2. File Explorer
+
+* View files
+* Edit files in browser
+* Save changes
+
+### 3. Staging Area
+
+* Button: "Add to staging"
+* Show staged files
+
+### 4. Commit System
+
+* Input box for commit message
+* Button: "Commit"
+* Show commit ID after commit
+
+### 5. Commit History (Log)
+
+* List commits
+* Show:
+
+  * hash
+  * message
+  * timestamp
+
+### 6. Checkout
+
+* Click commit → restore that version
+
+---
+
+## BACKEND REQUIREMENTS
+
+Convert each CLI command into API endpoints:
+
+POST /init
+POST /add
+POST /commit
+GET /log
+POST /checkout
+
+Each endpoint must:
+
+* Perform same logic as CLI
+* Read/write `.mygit/` folder
+
+---
+
+## FRONTEND REQUIREMENTS
+
+* Clean GitHub-like UI
+* Dark theme
+* Sidebar:
+
+  * Files
+  * Commits
+* Main panel:
+
+  * File viewer/editor
+  * Commit history
+
+---
+
+## IMPORTANT RULES
+
+* DO NOT change `.mygit` structure
+* DO NOT use database
+* Use filesystem APIs
+* Keep commit hashing logic same
+* Code must be production-level
+
+---
+
+## OUTPUT FORMAT
+
+1. Folder structure
+2. Backend code (Express server)
+3. Frontend code (React)
+4. API integration
+5. Step-by-step run instructions
+
+---
+
+## BONUS (if possible)
+
+* Add diff view (highlight changes)
+* Add AI explanation panel (optional)
+
+---
+
+Now generate the complete working web application.

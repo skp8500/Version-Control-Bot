@@ -6,4 +6,20 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from "./addFileRequest";
+export * from "./checkoutRequest";
+export * from "./commandResult";
+export * from "./commitDiff";
+export * from "./commitEntry";
+export * from "./commitLog";
+export * from "./commitRequest";
+export * from "./commitResult";
+export * from "./fileContent";
+export * from "./fileDiff";
+export * from "./fileDiffStatus";
+export * from "./fileEntry";
+export * from "./fileList";
+export * from "./getFileParams";
 export * from "./healthStatus";
+export * from "./repoStatus";
+export * from "./saveFileRequest";

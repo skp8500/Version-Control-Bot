@@ -8,3 +8,98 @@
 export interface HealthStatus {
   status: string;
 }
+
+export interface CommandResult {
+  success: boolean;
+  message: string;
+}
+
+export interface RepoStatus {
+  initialized: boolean;
+  /** Current HEAD hash or "none" */
+  head: string;
+  /** Current branch name */
+  branch: string;
+  /** Staged file names */
+  staged: string[];
+  /** Working directory file names */
+  files: string[];
+}
+
+export interface FileEntry {
+  path: string;
+  content: string;
+  size: number;
+}
+
+export interface FileList {
+  files: FileEntry[];
+}
+
+export interface FileContent {
+  path: string;
+  content: string;
+}
+
+export interface SaveFileRequest {
+  path: string;
+  content: string;
+}
+
+export interface AddFileRequest {
+  filename: string;
+}
+
+export interface CommitRequest {
+  message: string;
+}
+
+export interface CommitResult {
+  success: boolean;
+  commitId: string;
+  message: string;
+}
+
+export interface CommitEntry {
+  hash: string;
+  message: string;
+  timestamp: string;
+  parent: string;
+  files: string[];
+}
+
+export interface CommitLog {
+  commits: CommitEntry[];
+  head: string;
+}
+
+export interface CheckoutRequest {
+  commitId: string;
+}
+
+export type FileDiffStatus =
+  (typeof FileDiffStatus)[keyof typeof FileDiffStatus];
+
+export const FileDiffStatus = {
+  added: "added",
+  modified: "modified",
+  deleted: "deleted",
+  unchanged: "unchanged",
+} as const;
+
+export interface FileDiff {
+  path: string;
+  before: string;
+  after: string;
+  status: FileDiffStatus;
+}
+
+export interface CommitDiff {
+  commitId: string;
+  parentId: string;
+  diffs: FileDiff[];
+}
+
+export type GetFileParams = {
+  path: string;
+};

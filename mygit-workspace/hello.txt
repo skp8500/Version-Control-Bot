@@ -1,0 +1,2 @@
+Hello, mygit Web!
+This is a sample file tracked by mygit.

@@ -8,9 +8,139 @@
 import * as zod from "zod";
 
 /**
- * Returns server health status
  * @summary Health check
  */
 export const HealthCheckResponse = zod.object({
   status: zod.string(),
+});
+
+/**
+ * Returns HEAD, staged files, and working directory files
+ * @summary Get repository status
+ */
+export const GetRepoStatusResponse = zod.object({
+  initialized: zod.boolean(),
+  head: zod.string().describe('Current HEAD hash or \"none\"'),
+  branch: zod.string().describe("Current branch name"),
+  staged: zod.array(zod.string()).describe("Staged file names"),
+  files: zod.array(zod.string()).describe("Working directory file names"),
+});
+
+/**
+ * @summary Initialize a new mygit repository
+ */
+export const InitRepoResponse = zod.object({
+  success: zod.boolean(),
+  message: zod.string(),
+});
+
+/**
+ * @summary List all files in the working directory
+ */
+export const ListFilesResponse = zod.object({
+  files: zod.array(
+    zod.object({
+      path: zod.string(),
+      content: zod.string(),
+      size: zod.number(),
+    }),
+  ),
+});
+
+/**
+ * @summary Get contents of a file
+ */
+export const GetFileQueryParams = zod.object({
+  path: zod.coerce.string(),
+});
+
+export const GetFileResponse = zod.object({
+  path: zod.string(),
+  content: zod.string(),
+});
+
+/**
+ * @summary Save (create or update) a file
+ */
+export const SaveFileBody = zod.object({
+  path: zod.string(),
+  content: zod.string(),
+});
+
+export const SaveFileResponse = zod.object({
+  success: zod.boolean(),
+  message: zod.string(),
+});
+
+/**
+ * @summary Stage a file
+ */
+export const AddFileBody = zod.object({
+  filename: zod.string(),
+});
+
+export const AddFileResponse = zod.object({
+  success: zod.boolean(),
+  message: zod.string(),
+});
+
+/**
+ * @summary Commit staged files
+ */
+export const CreateCommitBody = zod.object({
+  message: zod.string(),
+});
+
+export const CreateCommitResponse = zod.object({
+  success: zod.boolean(),
+  commitId: zod.string(),
+  message: zod.string(),
+});
+
+/**
+ * @summary Get full commit history
+ */
+export const GetLogResponse = zod.object({
+  commits: zod.array(
+    zod.object({
+      hash: zod.string(),
+      message: zod.string(),
+      timestamp: zod.string(),
+      parent: zod.string(),
+      files: zod.array(zod.string()),
+    }),
+  ),
+  head: zod.string(),
+});
+
+/**
+ * @summary Restore working directory to a commit snapshot
+ */
+export const CheckoutCommitBody = zod.object({
+  commitId: zod.string(),
+});
+
+export const CheckoutCommitResponse = zod.object({
+  success: zod.boolean(),
+  message: zod.string(),
+});
+
+/**
+ * @summary Get file diffs for a commit vs its parent
+ */
+export const GetCommitDiffParams = zod.object({
+  commitId: zod.coerce.string(),
+});
+
+export const GetCommitDiffResponse = zod.object({
+  commitId: zod.string(),
+  parentId: zod.string(),
+  diffs: zod.array(
+    zod.object({
+      path: zod.string(),
+      before: zod.string(),
+      after: zod.string(),
+      status: zod.enum(["added", "modified", "deleted", "unchanged"]),
+    }),
+  ),
 });

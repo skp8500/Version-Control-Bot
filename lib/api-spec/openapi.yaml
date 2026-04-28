@@ -10,13 +10,15 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: mygit
+    description: mygit version control operations
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +26,172 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /mygit/status:
+    get:
+      operationId: getRepoStatus
+      tags: [mygit]
+      summary: Get repository status
+      description: Returns HEAD, staged files, and working directory files
+      responses:
+        "200":
+          description: Repository status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RepoStatus"
+
+  /mygit/init:
+    post:
+      operationId: initRepo
+      tags: [mygit]
+      summary: Initialize a new mygit repository
+      responses:
+        "200":
+          description: Repository initialized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandResult"
+
+  /mygit/files:
+    get:
+      operationId: listFiles
+      tags: [mygit]
+      summary: List all files in the working directory
+      responses:
+        "200":
+          description: File list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileList"
+
+  /mygit/file:
+    get:
+      operationId: getFile
+      tags: [mygit]
+      summary: Get contents of a file
+      parameters:
+        - name: path
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: File content
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileContent"
+    put:
+      operationId: saveFile
+      tags: [mygit]
+      summary: Save (create or update) a file
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SaveFileRequest"
+      responses:
+        "200":
+          description: File saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandResult"
+
+  /mygit/add:
+    post:
+      operationId: addFile
+      tags: [mygit]
+      summary: Stage a file
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddFileRequest"
+      responses:
+        "200":
+          description: File staged
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandResult"
+
+  /mygit/commit:
+    post:
+      operationId: createCommit
+      tags: [mygit]
+      summary: Commit staged files
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommitRequest"
+      responses:
+        "200":
+          description: Commit created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommitResult"
+
+  /mygit/log:
+    get:
+      operationId: getLog
+      tags: [mygit]
+      summary: Get full commit history
+      responses:
+        "200":
+          description: Commit history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommitLog"
+
+  /mygit/checkout:
+    post:
+      operationId: checkoutCommit
+      tags: [mygit]
+      summary: Restore working directory to a commit snapshot
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CheckoutRequest"
+      responses:
+        "200":
+          description: Checkout successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandResult"
+
+  /mygit/diff/{commitId}:
+    get:
+      operationId: getCommitDiff
+      tags: [mygit]
+      summary: Get file diffs for a commit vs its parent
+      parameters:
+        - name: commitId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Commit diff
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommitDiff"
+
 components:
   schemas:
     HealthStatus:
@@ -31,6 +199,161 @@ components:
       properties:
         status:
           type: string
-      required:
-        - status
+      required: [status]
 
+    CommandResult:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+      required: [success, message]
+
+    RepoStatus:
+      type: object
+      properties:
+        initialized:
+          type: boolean
+        head:
+          type: string
+          description: Current HEAD hash or "none"
+        branch:
+          type: string
+          description: Current branch name
+        staged:
+          type: array
+          items:
+            type: string
+          description: Staged file names
+        files:
+          type: array
+          items:
+            type: string
+          description: Working directory file names
+      required: [initialized, head, branch, staged, files]
+
+    FileEntry:
+      type: object
+      properties:
+        path:
+          type: string
+        content:
+          type: string
+        size:
+          type: number
+      required: [path, content, size]
+
+    FileList:
+      type: object
+      properties:
+        files:
+          type: array
+          items:
+            $ref: "#/components/schemas/FileEntry"
+      required: [files]
+
+    FileContent:
+      type: object
+      properties:
+        path:
+          type: string
+        content:
+          type: string
+      required: [path, content]
+
+    SaveFileRequest:
+      type: object
+      properties:
+        path:
+          type: string
+        content:
+          type: string
+      required: [path, content]
+
+    AddFileRequest:
+      type: object
+      properties:
+        filename:
+          type: string
+      required: [filename]
+
+    CommitRequest:
+      type: object
+      properties:
+        message:
+          type: string
+      required: [message]
+
+    CommitResult:
+      type: object
+      properties:
+        success:
+          type: boolean
+        commitId:
+          type: string
+        message:
+          type: string
+      required: [success, commitId, message]
+
+    CommitEntry:
+      type: object
+      properties:
+        hash:
+          type: string
+        message:
+          type: string
+        timestamp:
+          type: string
+        parent:
+          type: string
+        files:
+          type: array
+          items:
+            type: string
+      required: [hash, message, timestamp, parent, files]
+
+    CommitLog:
+      type: object
+      properties:
+        commits:
+          type: array
+          items:
+            $ref: "#/components/schemas/CommitEntry"
+        head:
+          type: string
+      required: [commits, head]
+
+    CheckoutRequest:
+      type: object
+      properties:
+        commitId:
+          type: string
+      required: [commitId]
+
+    FileDiff:
+      type: object
+      properties:
+        path:
+          type: string
+        before:
+          type: string
+        after:
+          type: string
+        status:
+          type: string
+          enum: [added, modified, deleted, unchanged]
+      required: [path, before, after, status]
+
+    CommitDiff:
+      type: object
+      properties:
+        commitId:
+          type: string
+        parentId:
+          type: string
+        diffs:
+          type: array
+          items:
+            $ref: "#/components/schemas/FileDiff"
+      required: [commitId, parentId, diffs]
