@@ -4,7 +4,6 @@
 #include <sstream>
 #include <string>
 #include <cstdlib>
-#include <algorithm>
 #include <vector>
 
 // ── libcurl write callback ────────────────────────────────────────────────────
@@ -13,15 +12,17 @@ static size_t writeCallback(char* ptr, size_t size, size_t nmemb, std::string* o
     return size * nmemb;
 }
 
-// ── Minimal JSON string extractor ────────────────────────────────────────────
-// Finds the value of "text": "..." in the Claude response body.
-// Handles basic escape sequences.
-static std::string extractTextField(const std::string& json) {
-    const std::string key = "\"text\":";
-    size_t pos = json.find(key);
+// ── JSON string value extractor ───────────────────────────────────────────────
+// Finds the value of the given JSON key and returns the string content.
+// Handles basic escape sequences. Searches from `startPos` onward.
+static std::string extractJsonString(const std::string& json,
+                                     const std::string& key,
+                                     size_t startPos = 0) {
+    std::string needle = "\"" + key + "\":";
+    size_t pos = json.find(needle, startPos);
     if (pos == std::string::npos) return "";
 
-    pos += key.size();
+    pos += needle.size();
     while (pos < json.size() && (json[pos] == ' ' || json[pos] == '\n')) pos++;
     if (pos >= json.size() || json[pos] != '"') return "";
     pos++; // skip opening quote
@@ -32,11 +33,12 @@ static std::string extractTextField(const std::string& json) {
         if (c == '\\' && pos < json.size()) {
             char esc = json[pos++];
             switch (esc) {
-                case 'n': result += '\n'; break;
-                case 't': result += '\t'; break;
-                case '"': result += '"'; break;
+                case 'n':  result += '\n'; break;
+                case 't':  result += '\t'; break;
+                case '"':  result += '"';  break;
                 case '\\': result += '\\'; break;
-                default:   result += esc; break;
+                case 'r':  result += '\r'; break;
+                default:   result += esc;  break;
             }
         } else if (c == '"') {
             break;
@@ -47,24 +49,27 @@ static std::string extractTextField(const std::string& json) {
     return result;
 }
 
-// ── Word-wrap a string to a given width ──────────────────────────────────────
+// ── Extract DeepSeek / OpenAI response text ───────────────────────────────────
+// Response shape: {"choices":[{"message":{"role":"assistant","content":"..."}}]}
+// We locate "message": then extract "content": from that position.
+static std::string extractContent(const std::string& json) {
+    // Find the first "message": block inside choices
+    size_t msgPos = json.find("\"message\":");
+    if (msgPos == std::string::npos) return "";
+    return extractJsonString(json, "content", msgPos);
+}
+
+// ── Word-wrap a plain-text string to a given visible width ────────────────────
 static std::vector<std::string> wrapText(const std::string& text, int width) {
     std::vector<std::string> lines;
     std::istringstream iss(text);
     std::string word, current;
 
     auto flush = [&]() {
-        if (!current.empty()) {
-            lines.push_back(current);
-            current.clear();
-        }
+        if (!current.empty()) { lines.push_back(current); current.clear(); }
     };
 
     while (iss >> word) {
-        if (word == "\n" || word == "\\n") {
-            flush();
-            continue;
-        }
         if (current.empty()) {
             current = word;
         } else if ((int)(current.size() + 1 + word.size()) <= width) {
@@ -79,72 +84,77 @@ static std::vector<std::string> wrapText(const std::string& text, int width) {
     return lines;
 }
 
-// ── Repeat a UTF-8 string n times ────────────────────────────────────────────
+// ── UTF-8 helpers ─────────────────────────────────────────────────────────────
+// Repeat a (possibly multi-byte) string n times.
 static std::string repeatStr(const std::string& s, int n) {
-    std::string result;
-    result.reserve(s.size() * (size_t)n);
-    for (int i = 0; i < n; i++) result += s;
-    return result;
+    std::string r;
+    r.reserve(s.size() * (size_t)n);
+    for (int i = 0; i < n; i++) r += s;
+    return r;
 }
 
-// Count visible (non-ASCII multi-byte) characters in a UTF-8 string.
-// Each byte in [0x80,0xBF] is a continuation byte — skip it for width.
+// Count visible characters: skip UTF-8 continuation bytes (0x80–0xBF).
 static int visWidth(const std::string& s) {
     int w = 0;
-    for (unsigned char c : s) {
-        if ((c & 0xC0) != 0x80) w++; // count only leading bytes
-    }
+    for (unsigned char c : s)
+        if ((c & 0xC0) != 0x80) w++;
     return w;
 }
 
-// ── Print the boxed output ────────────────────────────────────────────────────
+// ── Boxed terminal output ─────────────────────────────────────────────────────
 static void printBox(const std::string& text) {
-    const int BOX_WIDTH = 64; // inner text width in visible chars
-    // Full inner width = BOX_WIDTH + 2 spaces on each side + 2 border chars = BOX_WIDTH + 4 visible
-    const int INNER = BOX_WIDTH + 2; // padding between the │ borders
+    const int BOX_WIDTH = 64;   // visible chars per text line
+    const int INNER     = BOX_WIDTH + 2; // space between │ borders (2 padding each side)
 
-    // repeat-string helpers for UTF-8 box chars
-    const std::string HBAR = "─";
-    const std::string SPACE = " ";
+    const std::string H = "─";
+    const std::string SP = " ";
 
-    // "╭─ mygit-bot ──...──╮"
-    //  visible: 1 + 1 + label + fill + 1 = INNER + 2
-    std::string label = " mygit-bot ";
-    int labelVis = visWidth(label) + 1; // +1 for the leading "─"
-    int fillCount = INNER + 2 - 2 - labelVis; // total visible - two corner chars - label+leading dash
+    std::string label   = " mygit-bot ";
+    int labelVis        = visWidth(label) + 1; // +1 for leading dash
+    int fillCount       = INNER + 2 - 2 - labelVis;
     if (fillCount < 0) fillCount = 0;
 
-    std::string topLine = "╭" + HBAR + label + repeatStr(HBAR, fillCount) + "╮";
-    std::string botLine  = "╰" + repeatStr(HBAR, INNER + 2 - 2) + "╯";
-    std::string emptyRow = "│" + repeatStr(SPACE, INNER + 2 - 2) + "│";
+    std::string topLine  = "╭" + H + label + repeatStr(H, fillCount) + "╮";
+    std::string botLine  = "╰" + repeatStr(H, INNER)                 + "╯";
+    std::string emptyRow = "│" + repeatStr(SP, INNER)                 + "│";
 
     auto pad = [&](const std::string& s) {
-        int spaces = BOX_WIDTH - visWidth(s);
-        if (spaces < 0) spaces = 0;
-        return repeatStr(SPACE, spaces);
+        int n = BOX_WIDTH - visWidth(s);
+        return repeatStr(SP, n < 0 ? 0 : n);
     };
 
-    std::cout << "\n" << topLine << "\n";
-    std::cout << emptyRow << "\n";
-
-    auto lines = wrapText(text, BOX_WIDTH);
-    for (const auto& line : lines) {
+    std::cout << "\n" << topLine << "\n" << emptyRow << "\n";
+    for (const auto& line : wrapText(text, BOX_WIDTH))
         std::cout << "│  " << line << pad(line) << "  │\n";
-    }
-
-    std::cout << emptyRow << "\n";
-    std::cout << botLine << "\n\n";
+    std::cout << emptyRow << "\n" << botLine << "\n\n";
 }
 
-// ── Main entry point ──────────────────────────────────────────────────────────
+// ── JSON-escape a string for embedding in a JSON body ─────────────────────────
+static std::string jsonEscape(const std::string& s) {
+    std::string out;
+    out.reserve(s.size());
+    for (char c : s) {
+        switch (c) {
+            case '"':  out += "\\\""; break;
+            case '\\': out += "\\\\"; break;
+            case '\n': out += "\\n";  break;
+            case '\r': out += "\\r";  break;
+            case '\t': out += "\\t";  break;
+            default:   out += c;      break;
+        }
+    }
+    return out;
+}
+
+// ── Public entry point ────────────────────────────────────────────────────────
 void explainOperation(const std::string& command, const std::string& details) {
-    const char* apiKey = std::getenv("ANTHROPIC_API_KEY");
+    const char* apiKey = std::getenv("DEEPSEEK_API_KEY");
     if (!apiKey || std::string(apiKey).empty()) {
-        std::cerr << "[mygit-bot] ANTHROPIC_API_KEY not set — skipping explanation.\n";
+        std::cerr << "[mygit-bot] DEEPSEEK_API_KEY not set — skipping explanation.\n";
         return;
     }
 
-    // ── Build the prompt ─────────────────────────────────────────────────────
+    // ── Prompt ───────────────────────────────────────────────────────────────
     std::string prompt =
         "You are an embedded AI tutor inside a custom version control system called mygit.\n"
         "The user just ran: " + command + "\n"
@@ -156,28 +166,15 @@ void explainOperation(const std::string& command, const std::string& details) {
         "End your 4th sentence with one insight they would not have known otherwise. "
         "Do not use markdown, bullet points, or headers. Plain prose only.";
 
-    // ── Build JSON body ───────────────────────────────────────────────────────
-    // Manually escape the prompt for embedding in JSON
-    std::string escaped;
-    for (char c : prompt) {
-        switch (c) {
-            case '"':  escaped += "\\\""; break;
-            case '\\': escaped += "\\\\"; break;
-            case '\n': escaped += "\\n";  break;
-            case '\r': escaped += "\\r";  break;
-            case '\t': escaped += "\\t";  break;
-            default:   escaped += c;      break;
-        }
-    }
-
+    // ── OpenAI-compatible request body ───────────────────────────────────────
     std::string body =
         "{"
-        "\"model\":\"claude-sonnet-4-20250514\","
+        "\"model\":\"deepseek-chat\","
         "\"max_tokens\":512,"
-        "\"messages\":[{\"role\":\"user\",\"content\":\"" + escaped + "\"}]"
+        "\"messages\":[{\"role\":\"user\",\"content\":\"" + jsonEscape(prompt) + "\"}]"
         "}";
 
-    // ── libcurl HTTP POST ────────────────────────────────────────────────────
+    // ── libcurl POST ──────────────────────────────────────────────────────────
     CURL* curl = curl_easy_init();
     if (!curl) {
         std::cerr << "[mygit-bot] Failed to initialize curl.\n";
@@ -187,10 +184,10 @@ void explainOperation(const std::string& command, const std::string& details) {
     std::string response;
     struct curl_slist* headers = nullptr;
     headers = curl_slist_append(headers, "Content-Type: application/json");
-    headers = curl_slist_append(headers, ("x-api-key: " + std::string(apiKey)).c_str());
-    headers = curl_slist_append(headers, "anthropic-version: 2023-06-01");
+    headers = curl_slist_append(headers,
+        ("Authorization: Bearer " + std::string(apiKey)).c_str());
 
-    curl_easy_setopt(curl, CURLOPT_URL, "https://api.anthropic.com/v1/messages");
+    curl_easy_setopt(curl, CURLOPT_URL, "https://api.deepseek.com/chat/completions");
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());
     curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)body.size());
@@ -207,10 +204,10 @@ void explainOperation(const std::string& command, const std::string& details) {
         return;
     }
 
-    std::string text = extractTextField(response);
+    std::string text = extractContent(response);
     if (text.empty()) {
-        std::cerr << "[mygit-bot] Could not parse API response.\n";
-        std::cerr << "Raw: " << response.substr(0, 300) << "\n";
+        std::cerr << "[mygit-bot] Could not parse DeepSeek response.\n";
+        std::cerr << "Raw: " << response.substr(0, 400) << "\n";
         return;
     }
 
