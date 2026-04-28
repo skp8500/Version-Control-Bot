@@ -146,13 +146,25 @@ static std::string jsonEscape(const std::string& s) {
     return out;
 }
 
+// ── Pick the model to use (alternates between the two on each call) ───────────
+// Models: llama-3.3-70b-versatile, qwen/qwen3-32b
+static const char* GROQ_MODELS[] = {
+    "llama-3.3-70b-versatile",
+    "qwen/qwen3-32b"
+};
+static int s_modelIdx = 0;
+
 // ── Public entry point ────────────────────────────────────────────────────────
 void explainOperation(const std::string& command, const std::string& details) {
-    const char* apiKey = std::getenv("DEEPSEEK_API_KEY");
+    const char* apiKey = std::getenv("GROQ_API_KEY");
     if (!apiKey || std::string(apiKey).empty()) {
-        std::cerr << "[mygit-bot] DEEPSEEK_API_KEY not set — skipping explanation.\n";
+        std::cerr << "[mygit-bot] GROQ_API_KEY not set — skipping explanation.\n";
         return;
     }
+
+    // Pick model and advance the index for next call
+    std::string model = GROQ_MODELS[s_modelIdx % 2];
+    s_modelIdx++;
 
     // ── Prompt ───────────────────────────────────────────────────────────────
     std::string prompt =
@@ -166,13 +178,15 @@ void explainOperation(const std::string& command, const std::string& details) {
         "End your 4th sentence with one insight they would not have known otherwise. "
         "Do not use markdown, bullet points, or headers. Plain prose only.";
 
-    // ── OpenAI-compatible request body ───────────────────────────────────────
+    // ── OpenAI-compatible request body (Groq) ────────────────────────────────
     std::string body =
         "{"
-        "\"model\":\"deepseek-chat\","
+        "\"model\":\"" + model + "\","
         "\"max_tokens\":512,"
         "\"messages\":[{\"role\":\"user\",\"content\":\"" + jsonEscape(prompt) + "\"}]"
         "}";
+
+    std::cerr << "[mygit-bot] Using model: " << model << "\n";
 
     // ── libcurl POST ──────────────────────────────────────────────────────────
     CURL* curl = curl_easy_init();
