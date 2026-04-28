@@ -1,6 +1,11 @@
 #include <iostream>
+using namespace std;
+
+string solve(){
+    return"Hello World"
+}
 
 int main() {
-    std::cout << "Hello from mygit!\n";
+    cout<<solve()<<endl;
     return 0;
 }
