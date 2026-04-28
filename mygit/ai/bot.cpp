@@ -201,7 +201,7 @@ void explainOperation(const std::string& command, const std::string& details) {
     headers = curl_slist_append(headers,
         ("Authorization: Bearer " + std::string(apiKey)).c_str());
 
-    curl_easy_setopt(curl, CURLOPT_URL, "https://api.deepseek.com/chat/completions");
+    curl_easy_setopt(curl, CURLOPT_URL, "https://api.groq.com/openai/v1/chat/completions");
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());
     curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)body.size());
