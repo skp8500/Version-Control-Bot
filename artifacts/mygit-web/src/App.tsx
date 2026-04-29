@@ -4,13 +4,17 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import Workspace from "@/pages/Workspace";
+import Dashboard from "@/pages/Dashboard";
+import RepoView from "@/pages/RepoView";
 
 const queryClient = new QueryClient();
 
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Workspace} />
+      <Route path="/" component={Dashboard} />
+      <Route path="/repos/:id" component={RepoView} />
+      <Route path="/workspace" component={Workspace} />
       <Route component={NotFound} />
     </Switch>
   );

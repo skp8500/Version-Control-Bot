@@ -1,8 +1,10 @@
-# mygit Project
+# mygit — Full Platform
 
-A minimal version control system in two forms:
-1. **CLI tool** — C++17 binary with AI explanations after each command
-2. **Web app** — Full-stack React+Vite + Express + PostgreSQL
+A GitHub-like version control platform in two forms:
+1. **CLI tool** — C++17 binary with AI explanations
+2. **Web platform** — Multi-user, React+Vite + Express + PostgreSQL
+
+---
 
 ## Architecture
 
@@ -10,62 +12,103 @@ A minimal version control system in two forms:
 - `main.cpp` — CLI router
 - `commands/init.cpp` — fully implemented; others are stubs
 - `ai/bot.cpp` — Groq API AI bot (alternates models)
-- `utils/hash.cpp` — djb2 hash (unsigned 64-bit)
+- `utils/hash.cpp` — djb2 hash
 - `Makefile` + `demo.sh`
 
-### Web App
+### Web Platform
 
-**Frontend** (`artifacts/mygit-web/`)
-- `src/pages/Workspace.tsx` — full workspace UI:
-  - Left sidebar: branch/HEAD, staged files, working tree, commit history
-  - Main panel: file editor, commit interface, commit diff viewer
-  - Bottom terminal: real mygit commands, arrow-key history, clear
-  - Right AI bot panel: contextual chat with Groq API
+#### Frontend (`artifacts/mygit-web/`)
+**Pages:**
+- `/` → `Dashboard.tsx` — Public repo listing, search, create (requireAuth)
+- `/repos/:id` → `RepoView.tsx` — File browser, editor, push, graph, conflicts
+- `/workspace` → `Workspace.tsx` — Original single-repo workspace with terminal + AI bot
 
-**Backend** (`artifacts/api-server/`)
-- `src/routes/mygit.ts` — REST API (10 endpoints)
-- `src/routes/terminal.ts` — `POST /api/terminal`, `GET /api/terminal/history`
-- `src/routes/aibot.ts` — `POST /api/bot/chat`, `GET /api/bot/history`
-- `src/lib/mygitFs.ts` — filesystem mygit logic (TypeScript port of C++ CLI)
-- `src/lib/mygitDb.ts` — DB-backed layer on top of filesystem
+**Components:**
+- `AuthModal.tsx` — Overlay modal (never redirects), login + signup tabs
+- `CommitGraph.tsx` — D3.js force-directed commit DAG with click-to-diff
+- `ConflictResolver.tsx` — Split-pane merge conflict UI (Keep Mine / Keep Theirs / Edit)
+- `UploadDetector.tsx` — Zip/folder upload with auto language/framework detection
 
-**Database** (`lib/db/`)
-- Schema: `repositories`, `commits`, `commit_files`, `working_files`, `staged_files`, `terminal_history`, `ai_messages`
-- ORM: Drizzle ORM with PostgreSQL
-- Push schema: `cd lib/db && pnpm run push`
+**Hooks:**
+- `useAuth.ts` — `requireAuth(action)` pattern: if logged in → run action; else → show AuthModal then run action
 
-**Shared Libraries**
-- `lib/api-spec/openapi.yaml` — OpenAPI spec
-- `lib/api-client-react/` — Generated React Query hooks
-- `lib/api-zod/` — Generated Zod schemas
+#### Backend (`artifacts/api-server/`)
+**Auth routes** (`src/routes/auth.ts`):
+- `POST /api/auth/register` — creates user, returns JWT
+- `POST /api/auth/login` — verifies password, returns JWT
+- `GET /api/auth/me` — validate token
 
-### Storage Strategy
-- Filesystem (`.mygit/`) is the canonical source of truth for repo state
-- PostgreSQL stores all history for queryability: terminal commands, AI conversations, commit metadata
-- Repo path: `MYGIT_REPO_PATH` env var, defaults to `/home/runner/workspace/mygit-workspace/`
+**Repo routes** (`src/routes/repos.ts`):
+- `GET /api/repos` — public list (no auth)
+- `POST /api/repos` — create (JWT required)
+- `GET /api/repos/:id` — repo info (public)
+- `GET /api/repos/:id/files` — file tree (public)
+- `GET /api/repos/:id/commits` — commit history (public)
+- `GET /api/repos/:id/graph` — graph data for D3 (public)
+- `GET /api/repos/:id/diff/:hash` — diff for a commit (public)
+- `POST /api/repos/:id/commit` — push commit (JWT required), conflict detection returns 409
+- `POST /api/repos/:id/upload` — zip/file upload (JWT required), auto-detect lang/framework
+- `POST /api/repos/:id/resolve` — resolve conflict (JWT required)
+- `GET /api/repos/:id/conflicts` — open conflicts (public)
+- `POST /api/explain` — AI explanation via Groq (public, guests can use too)
 
-## API Endpoints
+**Middleware:**
+- `optionalAuth` — attaches user if valid JWT present, never blocks
+- `strictAuth` — returns 401 if no valid JWT
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/mygit/status` | Repo status |
-| POST | `/api/mygit/init` | Initialize repository |
-| GET | `/api/mygit/files` | List files |
-| GET | `/api/mygit/file?path=` | Get file content |
-| PUT | `/api/mygit/file` | Save file |
-| POST | `/api/mygit/add` | Stage a file |
-| POST | `/api/mygit/commit` | Create commit |
-| GET | `/api/mygit/log` | Commit history |
-| POST | `/api/mygit/checkout` | Restore to commit |
-| GET | `/api/mygit/diff/:id` | File diff for commit |
-| POST | `/api/terminal` | Execute mygit terminal command |
-| GET | `/api/terminal/history` | Terminal command history |
-| POST | `/api/bot/chat` | AI bot message |
-| GET | `/api/bot/history` | AI conversation history |
+**Legacy mygit routes** (`src/routes/mygit.ts`):
+- All original 10 endpoints still work for the single-repo Workspace page
+- Terminal: `POST /api/terminal`, `GET /api/terminal/history`
+- AI Bot: `POST /api/bot/chat`, `GET /api/bot/history`
+
+#### Database (`lib/db/`)
+**Tables:**
+- `users` — id, username, email, password_hash, created_at
+- `repositories` — id, user_id, name, description, repo_path, branch, head_hash, is_public, language, framework, initialized_at
+- `commits` — id, repo_id, hash, message, parent_hash, author, created_at
+- `commit_files` — id, commit_id, path, content, status
+- `working_files` — id, repo_id, path, content, updated_at
+- `staged_files` — id, repo_id, path
+- `conflicts` — id, repo_id, file_path, base_content, ours, theirs, resolved, created_at
+- `terminal_history` — id, repo_id, command, output, success, executed_at
+- `ai_messages` — id, repo_id, role, content, created_at
+
+Push schema: `cd lib/db && pnpm run push`
+
+---
+
+## Auth Philosophy
+
+**GUEST mode** — No login needed for:
+- Browse all public repos and files
+- View commit graph, click nodes → see diffs
+- Run the AI bot
+
+**Auth triggered** (login modal appears) only when:
+- Creating a repo
+- Pushing/committing changes
+- Editing files
+- Uploading files
+- Resolving conflicts
+
+Auth flow: modal overlay on current page → after login, modal closes → pending action executes automatically.  
+JWT stored in `localStorage` as `mygit_token`. User info stored as `mygit_user`.
+
+---
+
+## Multi-Repo Storage
+- Repos created via web UI store files in the DB (`commit_files`, `working_files`)
+- Repo filesystem path: `MYGIT_WORKSPACES_ROOT/{userId}-{name}/` (default: `/home/runner/workspace/mygit-workspaces/`)
+- Original single-repo workspace uses `MYGIT_REPO_PATH` (default: `/home/runner/workspace/mygit-workspace/`)
+
+---
 
 ## Secrets
-- `GROQ_API_KEY` — Groq API (bot and CLI)
-- `DATABASE_URL` + `PGHOST/PORT/USER/PASSWORD/DATABASE` — PostgreSQL (auto-set)
+- `GROQ_API_KEY` — Groq API (bot, CLI, AI explanations)
+- `SESSION_SECRET` — JWT signing secret (fallback: `mygit-dev-secret`)
+- `DATABASE_URL` + `PGHOST/PORT/USER/PASSWORD/DATABASE` — PostgreSQL (auto-set by Replit)
+
+---
 
 ## Codegen
 ```

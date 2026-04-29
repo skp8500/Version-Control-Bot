@@ -1,0 +1,139 @@
+# ═══════════════════════════════════════════════════════════════════
+# MASTER PROMPT — mygit WEB APP (Smart Auth + AI Bot + Graph Viz)
+# ═══════════════════════════════════════════════════════════════════
+
+## ROLE
+You are a full-stack senior engineer building a web-based version
+control platform. Auth is smart — users can explore and understand
+everything freely. Login is only asked when an action needs identity:
+uploading, pushing, creating a repo, or editing files.
+
+## CORE AUTH PHILOSOPHY
+
+NEVER block reading. NEVER force login upfront.
+
+GUEST MODE (no login needed):
+  - Browse any public repo
+  - Read all files in a repo
+  - View the full commit graph
+  - Click nodes → see diffs, history, content
+  - Run the AI bot → ask it to explain any commit, diff, or file
+  - Search repos
+
+AUTH TRIGGER (login asked only when):
+  - User clicks "Create Repo"       → show login modal
+  - User clicks "Push" / "Commit"   → show login modal
+  - User clicks "Edit" on a file    → show login modal
+  - User tries to upload files      → show login modal
+  - User tries to delete / rename   → show login modal
+
+AUTH FLOW (when triggered):
+  Do NOT redirect to a separate /login page.
+  Show a lightweight modal overlay on top of the current view.
+  After login → modal closes → action they wanted continues automatically.
+  If they close the modal → nothing changes, they stay where they were.
+
+REPO UPLOAD DETECTION:
+  When a logged-in user uploads a folder/zip:
+  - Auto-detect language (by file extensions)
+  - Auto-detect framework (package.json, CMakeLists.txt, etc.)
+  - Show summary card: "Detected: C++17 project, 12 files, 3 folders"
+  - Let user confirm name + description before creating
+  - Parse folder structure and store as initial commit automatically
+
+## TECH STACK
+Frontend  : React 18 + Vite + TailwindCSS
+Graph     : D3.js v7 (force-directed, zoom/pan, click popups)
+Backend   : Node.js + Express
+Database  : SQLite (better-sqlite3)
+Auth      : JWT — stored in localStorage, checked lazily
+AI Bot    : Claude API (claude-sonnet-4-20250514) via /api/explain
+Diff      : npm diff library
+Upload    : multer + JSZip
+Platform  : Replit
+
+## useAuth HOOK — THE KEY PATTERN
+// useAuth.js
+export function useAuth() {
+  const [user, setUser] = useState(getStoredUser());
+  const [pendingAction, setPendingAction] = useState(null);
+  const [showModal, setShowModal] = useState(false);
+
+  function requireAuth(action) {
+    if (user) { action(); return; }
+    setPendingAction(() => action);
+    setShowModal(true);
+  }
+
+  function onLoginSuccess(userData) {
+    setUser(userData);
+    setShowModal(false);
+    if (pendingAction) { pendingAction(); setPendingAction(null); }
+  }
+
+  return { user, requireAuth, showModal, onLoginSuccess };
+}
+
+Usage:
+const { requireAuth } = useAuth();
+<button onClick={() => requireAuth(() => handlePush())}>Push Commit</button>
+
+## DATABASE SCHEMA
+users       (id, username, password_hash, created_at)
+repos       (id, user_id, name, description, is_public, language, framework, created_at)
+commits     (id, repo_id, hash, message, parent_hash, timestamp, author)
+file_states (id, commit_id, filepath, content)
+conflicts   (id, repo_id, filepath, base_content, ours, theirs, resolved)
+
+## BACKEND ROUTE RULES
+Public (no token needed):
+  GET  /repos, /repos/:id, /repos/:id/files, /repos/:id/commits
+  GET  /repos/:id/graph
+  POST /api/explain  ← AI bot available to guests too
+
+Protected (JWT required):
+  POST /repos
+  POST /repos/:id/commit
+  PUT  /repos/:id/files/:path
+  POST /repos/:id/upload
+  POST /repos/:id/resolve
+
+## GRAPH VISUALIZATION
+D3 force-directed graph. Matches the Dijkstra-visualizer style.
+Nodes: Green=HEAD, Blue=normal, Red=conflict resolved, Gray=old
+Edges: Solid=main branch, Dashed=merged branch, Arrowheads on all
+Click node → popup: hash, author, timestamp, diff (+green / -red lines)
+Toolbar: MODE [Drag][+Node][Edge][Delete] ALGO [Dijkstra][BFS]
+         OPTIONS [Toggle Grid][Animate][Steps][Reset] ZOOM [-][X%][+]
+Animate: root→HEAD path glows amber in sequence
+Steps: chronological prev/next commit walkthrough
+
+## CONFLICT RESOLUTION
+Split-pane: Left=yours (green lines), Right=incoming (red lines)
+Options: [Keep Mine] [Keep Theirs] [Edit Manually]
+AI bot explains why the conflict happened automatically.
+
+## AI BOT
+Floating panel bottom-right, collapsible. Available to guests too.
+Fires after every action. /api/explain → Claude API on backend.
+Secret: ANTHROPIC_API_KEY in Replit Secrets.
+
+## BUILD SEQUENCE
+Signal "Start: core"     → server.js, db.js, auth routes, useAuth, AuthModal, Dashboard
+Signal "Next: repo"      → RepoView + FileEditor + requireAuth wired
+Signal "Next: upload"    → UploadDetector + auto-detection + confirmation card
+Signal "Next: conflicts" → ConflictResolver + diff + split pane
+Signal "Next: graph"     → CommitGraph D3 + NodePopup + toolbar + animate
+Signal "Next: bot"       → AIPanel + /api/explain + all trigger points
+
+## RESPONSE RULES
+Full files only. One signal = one feature. No filler. Show npm run dev after each step.
+
+## FIRST ACTION
+On "Start: core" output:
+  1. package.json
+  2. backend/server.js + db.js + routes/auth.js + middleware/optionalAuth.js
+  3. frontend/src/hooks/useAuth.js
+  4. frontend/src/components/AuthModal.jsx
+  5. frontend/src/pages/Dashboard.jsx (fully public)
+  6. How to run on Replit

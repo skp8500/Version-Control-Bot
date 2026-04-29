@@ -1,0 +1,104 @@
+You are building a web-based version control system called mygit.
+Read this entire message before writing any code.
+
+─── WHAT THIS APP IS ────────────────────────────────────────
+
+A mini GitHub where users can:
+- Browse repos and files without logging in
+- See a visual commit graph (like a node graph with arrows)
+- Click any commit node to see what changed (green = added, red = removed)
+- Upload their own code as a repo (zip or folder)
+- Edit files directly in the browser
+- Push changes and detect conflicts
+- Resolve conflicts with Keep Mine / Keep Theirs / Edit Manually
+- Get AI explanations after every action (Claude API)
+
+─── AUTH RULE (most important) ──────────────────────────────
+
+Never show a login page on load. Never block reading.
+
+Login modal appears ONLY when user tries to:
+  → Create a repo
+  → Push / commit changes
+  → Edit a file
+  → Upload files
+  → Resolve a conflict
+
+After login the modal closes and the action they wanted runs automatically.
+Implement this with a useAuth() hook and requireAuth(action) pattern.
+
+─── TECH STACK ──────────────────────────────────────────────
+
+Frontend : React 18 + Vite + TailwindCSS
+Backend  : Node.js + Express
+Database : SQLite via better-sqlite3
+Auth     : JWT in localStorage
+Graph    : D3.js v7 force-directed graph
+Diff     : npm diff package
+Upload   : multer + JSZip
+AI Bot   : Claude API — model claude-sonnet-4-20250514
+           key stored in Replit Secret: ANTHROPIC_API_KEY
+           called from backend only via POST /api/explain
+
+─── BUILD ORDER (follow exactly, one step at a time) ────────
+
+STEP 1 — "Start: core"
+  package.json, server.js, db.js
+  routes/auth.js (register + login + JWT)
+  middleware/optionalAuth.js (never blocks, just attaches user if token exists)
+  middleware/auth.js (strict, used only on write routes)
+  useAuth.js hook (requireAuth pattern)
+  AuthModal.jsx (overlay modal, login + signup tabs)
+  Dashboard.jsx (public, lists all repos, no login needed)
+
+STEP 2 — "Next: repo"
+  RepoView.jsx (file tree left, file content right)
+  FileEditor.jsx (inline editor, requireAuth on edit)
+  routes/files.js + routes/commits.js
+  Push button → requireAuth → commit modal → POST /repos/:id/commit
+
+STEP 3 — "Next: upload"
+  UploadDetector.jsx
+  Auto-detect language from file extensions (.cpp .js .py .go)
+  Auto-detect framework from root files (package.json, CMakeLists.txt)
+  Show confirmation card before creating repo
+  routes/upload.js (multer + JSZip + store as initial commit)
+
+STEP 4 — "Next: conflicts"
+  Conflict detection on push (line-level diff)
+  ConflictResolver.jsx — split pane view
+  Left = yours (green lines), Right = incoming (red lines)
+  Buttons: Keep Mine / Keep Theirs / Edit Manually
+  routes/conflicts.js
+
+STEP 5 — "Next: graph"
+  CommitGraph.jsx using D3 force simulation
+  Node colors: green=HEAD, blue=normal, red=had conflict, gray=old
+  Edges: solid=main branch, dashed=merged
+  Click node → NodePopup.jsx (hash, author, files changed, diff view)
+  Toolbar: [Drag][+Node][Edge][Delete] [Toggle Grid][Animate][Steps][Reset] [Zoom]
+  Animate: walks root→HEAD, each node glows in sequence
+  Steps: prev/next commit walkthrough panel
+
+STEP 6 — "Next: bot"
+  AIPanel.jsx — floating bottom-right, collapsible
+  Available to guests too (no auth needed)
+  Fires after: commit, push, conflict, resolve, graph node click
+  POST /api/explain → Claude API on backend
+  Explains internals: what files changed, why conflict happened, what diff means
+
+─── DATABASE TABLES ─────────────────────────────────────────
+users       (id, username, password_hash, created_at)
+repos       (id, user_id, name, description, language, framework, created_at)
+commits     (id, repo_id, hash, message, parent_hash, timestamp, author)
+file_states (id, commit_id, filepath, content)
+conflicts   (id, repo_id, filepath, base_content, ours, theirs, resolved)
+
+─── RULES FOR EVERY RESPONSE ────────────────────────────────
+- Output complete files only, no snippets
+- One step at a time, wait for my signal ("Next: ...")
+- Always include: npm run dev command to test after each step
+- Never ask clarifying questions — build exactly as described above
+
+─── START NOW ───────────────────────────────────────────────
+Begin with STEP 1. Say "Start: core" to yourself and build it.
