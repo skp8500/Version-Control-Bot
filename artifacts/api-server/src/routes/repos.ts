@@ -136,33 +136,84 @@ router.get("/repos/:id/commits", optionalAuth, async (req, res) => {
 });
 
 // ── GET /api/repos/:id/graph — public, for D3 ────────────────────────────────
+// Never returns 401. Always returns { commitGraph, fileGraph } even when empty.
 router.get("/repos/:id/graph", optionalAuth, async (req, res) => {
   const id = Number(req.params.id);
-  const repo = await db.select().from(repositories).where(eq(repositories.id, id)).limit(1);
-  if (!repo[0]) return res.status(404).json({ error: "Repo not found" });
 
+  const repoRows = await db.select().from(repositories).where(eq(repositories.id, id)).limit(1);
+  if (!repoRows[0]) {
+    return res.status(404).json({ error: "Repo not found" });
+  }
+  const repo = repoRows[0];
+
+  // ── Commit graph ─────────────────────────────────────────────────────────
   const commitRows = await db
     .select()
     .from(commits)
     .where(eq(commits.repoId, id))
     .orderBy(commits.createdAt);
 
-  const head = repo[0].headHash;
+  const head = repo.headHash;
 
-  const nodes = commitRows.map((c) => ({
+  const commitNodes = commitRows.map((c) => ({
     id: c.hash,
     hash: c.hash,
     message: c.message,
     author: c.author,
     timestamp: c.createdAt,
     isHead: c.hash === head,
+    hasConflict: false,
   }));
 
-  const links = commitRows
+  // Edges: child → parent (chronological forward direction for arrowheads)
+  const commitEdges = commitRows
     .filter((c) => c.parentHash !== "none")
-    .map((c) => ({ source: c.hash, target: c.parentHash }));
+    .map((c) => ({ source: c.hash, target: c.parentHash, isMerge: false }));
 
-  return res.json({ nodes, links, head });
+  // ── File graph ────────────────────────────────────────────────────────────
+  // Built from the working files of the repo (HEAD state)
+  const wfRows = await db
+    .select({ path: workingFiles.path, content: workingFiles.content })
+    .from(workingFiles)
+    .where(eq(workingFiles.repoId, id));
+
+  const fileNodeMap = new Map<string, { id: string; path: string; type: "file" | "folder"; language: string }>();
+  const fileEdges: { source: string; target: string }[] = [];
+
+  for (const f of wfRows) {
+    const parts = f.path.split("/");
+    // Add file node
+    const fileId = `file:${f.path}`;
+    const ext = f.path.split(".").pop() ?? "";
+    const langMap: Record<string, string> = { ts: "TypeScript", tsx: "TypeScript", js: "JavaScript", jsx: "JavaScript", py: "Python", cpp: "C++", h: "C++", go: "Go", rs: "Rust", md: "Markdown" };
+    fileNodeMap.set(fileId, { id: fileId, path: f.path, type: "file", language: langMap[ext] ?? ext });
+
+    // Add folder nodes and edges for each segment
+    for (let i = 0; i < parts.length - 1; i++) {
+      const folderPath = parts.slice(0, i + 1).join("/");
+      const folderId = `folder:${folderPath}`;
+      if (!fileNodeMap.has(folderId)) {
+        fileNodeMap.set(folderId, { id: folderId, path: folderPath, type: "folder", language: "" });
+      }
+      // Edge: folder → child
+      const childId = i === parts.length - 2 ? fileId : `folder:${parts.slice(0, i + 2).join("/")}`;
+      if (!fileEdges.some((e) => e.source === folderId && e.target === childId)) {
+        fileEdges.push({ source: folderId, target: childId });
+      }
+    }
+  }
+
+  return res.json({
+    commitGraph: {
+      nodes: commitNodes,
+      edges: commitEdges,
+      head,
+    },
+    fileGraph: {
+      nodes: Array.from(fileNodeMap.values()),
+      edges: fileEdges,
+    },
+  });
 });
 
 // ── GET /api/repos/:id/diff/:commitHash — public ─────────────────────────────

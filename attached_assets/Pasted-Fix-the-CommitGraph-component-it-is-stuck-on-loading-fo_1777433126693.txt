@@ -1,0 +1,138 @@
+Fix the CommitGraph component — it is stuck on loading forever.
+
+─── PROBLEMS TO FIX ─────────────────────────────────────────
+
+1. Loading never stops
+   The graph shows a loading spinner and never renders.
+   Most likely causes (fix ALL of them):
+
+   a) D3 renders before data arrives — useEffect has no proper
+      dependency on the fetched commits data
+   b) SVG ref is null when D3 tries to select it —
+      useRef not attached to the actual svg element
+   c) Fetch to /repos/:id/graph fails silently —
+      no error handling, loading state never set to false
+   d) D3 not imported correctly for Vite (ESM import issue)
+
+2. Graph must work with ZERO commits too
+   If repo has no commits yet, show a friendly empty state:
+   "No commits yet — push your first commit to see the graph"
+   Do NOT stay on loading spinner.
+
+─── HOW TO REWRITE CommitGraph.jsx ──────────────────────────
+
+Data fetching:
+   Use useEffect + fetch to GET /repos/:id/graph
+   Always set loading=false in finally block (never leaves loading)
+   If response is not ok, set error state and show error message
+   If data.nodes is empty, show empty state — not loading
+
+D3 setup (critical):
+   const svgRef = useRef(null)
+   In useEffect, check: if (!svgRef.current || !nodes.length) return
+   Use d3.select(svgRef.current) — NOT d3.select('svg')
+   Clear previous render first: d3.select(svgRef.current).selectAll('*').remove()
+   Only run D3 code AFTER data is confirmed non-empty
+
+D3 import for Vite:
+   import * as d3 from 'd3'
+   Make sure d3 is in package.json dependencies
+   Run: npm install d3
+
+Force simulation:
+   const simulation = d3.forceSimulation(nodes)
+     .force('link', d3.forceLink(edges).id(d => d.id).distance(120))
+     .force('charge', d3.forceManyBody().strength(-300))
+     .force('center', d3.forceCenter(width / 2, height / 2))
+   
+   On each tick update node and edge positions.
+   Call simulation.stop() on component unmount (return () => simulation.stop())
+
+Node colors:
+   HEAD commit   → #28C840 (green) with pulsing ring
+   Normal commit → #5B8DEF (blue)
+   Had conflict  → #FF6B6B (red)
+   Old commit    → #6B7280 (gray)
+
+Edges:
+   Add arrowhead marker in SVG defs
+   Solid line for main branch, dashed (strokeDasharray 6,3) for merges
+   Draw edges BEFORE nodes so arrows appear under circles
+
+Click node → popup:
+   On node click set selectedNode state
+   Show popup div (position: absolute) with:
+     - Short hash (first 7 chars)
+     - Commit message
+     - Author + timestamp
+     - Files changed list
+     - Diff: lines starting with + on green bg, lines with - on red bg
+   Close popup on click outside (add onClick to SVG container)
+
+Zoom + pan:
+   const zoom = d3.zoom().scaleExtent([0.2, 3]).on('zoom', (e) => {
+     g.attr('transform', e.transform)
+   })
+   d3.select(svgRef.current).call(zoom)
+   Wrap all nodes/edges in a  element for transform
+
+Toolbar (render in JSX above SVG):
+   MODE    : [Drag] [+Node] [Edge] [Delete]
+   OPTIONS : [Toggle Grid] [Animate] [Steps] [Reset]
+   ZOOM    : [−] [Zoom: {zoomLevel}%] [+]
+   Track zoom level in state, update on d3 zoom events
+
+Animate button:
+   Walk commits in chronological order (sort by timestamp)
+   Highlight each node amber (#FFB547) for 600ms then revert
+   Use setTimeout chain — not setInterval
+
+Steps button:
+   Opens a panel below the graph
+   Shows one commit at a time: hash, message, files, diff
+   Prev / Next buttons, current index in state
+
+─── ALSO FIX: Codebase Navigation ───────────────────────────
+
+The graph must show the ENTIRE codebase structure, not just commits.
+Add a toggle: [Commit View] vs [File View]
+
+File View mode:
+   Nodes = files and folders in the repo
+   Edges = folder contains file (parent → child)
+   Click a file node → opens file content in a side panel
+   Click a folder node → expands/collapses its children
+   Color: folders = amber, files = blue, entry points (main.cpp/index.js) = green
+
+Navigation:
+   Clicking any node in File View → highlights that node + its connections
+   Side panel shows: file path, last modified commit, full file content
+   "Open in Editor" button on side panel → opens FileEditor for that file
+
+─── BACKEND: Fix /repos/:id/graph route ─────────────────────
+
+Make sure this route:
+   1. Returns 200 with { nodes: [], edges: [] } when no commits (not 404)
+   2. Builds nodes from commits table for Commit View
+   3. Builds nodes from file_states of latest commit for File View
+   4. Never returns 401 — this is a public route, no auth needed
+   5. Marks the HEAD node: nodes include { isHead: true } on latest commit
+
+Response shape:
+{
+  commitGraph: {
+    nodes: [{ id, hash, message, author, timestamp, isHead, hasConflict }],
+    edges: [{ source, target, isMerge }]
+  },
+  fileGraph: {
+    nodes: [{ id, path, type: 'file'|'folder', language }],
+    edges: [{ source, target }]
+  }
+}
+
+─── RULES ───────────────────────────────────────────────────
+- Rewrite CommitGraph.jsx completely from scratch
+- Output the full file — no snippets
+- Fix the backend graph route too
+- Test that it renders with 0 commits AND with 3+ commits
+- Show npm run dev after done
