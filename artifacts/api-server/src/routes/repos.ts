@@ -220,11 +220,12 @@ router.get("/repos/:id/graph", optionalAuth, async (req, res) => {
 router.get("/repos/:id/diff/:commitHash", optionalAuth, async (req, res) => {
   const repoId = Number(req.params.id);
   const commitHash = String(req.params.commitHash);
+  const commitHashValue: string = commitHash;
 
   const commitRow = await db
     .select()
     .from(commits)
-    .where(and(eq(commits.repoId, repoId), eq(commits.hash, commitHash)))
+    .where(and(eq(commits.repoId, repoId), eq(commits.hash, commitHashValue)))
     .limit(1);
   if (!commitRow[0]) return res.status(404).json({ error: "Commit not found" });
 
