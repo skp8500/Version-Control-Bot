@@ -19,6 +19,7 @@ const WELCOME: Line[] = [
 ];
 
 export default function GlobalTerminal() {
+  const apiBase = API_BASE || "";
   const [open, setOpen] = useState(false);
   const [minimized, setMinimized] = useState(false);
   const [lines, setLines] = useState<Line[]>(WELCOME);
@@ -75,7 +76,7 @@ export default function GlobalTerminal() {
     setRunning(true);
 
     try {
-      const res = await fetch(`${API_BASE}/api/terminal`, {
+      const res = await fetch(`${apiBase}/api/terminal`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ command: cmd }),
