@@ -21,6 +21,7 @@ import ConflictResolver from "@/components/ConflictResolver";
 import { useAuth } from "@/hooks/useAuth";
 import { getStoredToken } from "@/hooks/useAuth";
 
+import { API_BASE } from "@/lib/api";
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 interface RepoInfo {
@@ -87,10 +88,10 @@ export default function RepoView({ params }: { params: { id: string } }) {
     setLoading(true);
     try {
       const [repoRes, filesRes, commitsRes, conflictsRes] = await Promise.all([
-        fetch(`${BASE}/api/repos/${repoId}`),
-        fetch(`${BASE}/api/repos/${repoId}/files`),
-        fetch(`${BASE}/api/repos/${repoId}/commits`),
-        fetch(`${BASE}/api/repos/${repoId}/conflicts`),
+        fetch(`${API_BASE}/api/repos/${repoId}`),
+        fetch(`${API_BASE}/api/repos/${repoId}/files`),
+        fetch(`${API_BASE}/api/repos/${repoId}/commits`),
+        fetch(`${API_BASE}/api/repos/${repoId}/conflicts`),
       ]);
       const repoData = (await repoRes.json()) as { repo: RepoInfo };
       const filesData = (await filesRes.json()) as { files: WorkingFile[] };
@@ -129,7 +130,7 @@ export default function RepoView({ params }: { params: { id: string } }) {
     setPushing(true);
     try {
       const token = getStoredToken();
-      const res = await fetch(`${BASE}/api/repos/${repoId}/commit`, {
+      const res = await fetch(`${API_BASE}/api/repos/${repoId}/commit`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token ?? ""}` },
         body: JSON.stringify({ message: commitMsg, files: changedFiles }),
@@ -162,7 +163,7 @@ export default function RepoView({ params }: { params: { id: string } }) {
     setBotOpen(true);
     setBotLoading(true);
     try {
-      const res = await fetch(`${BASE}/api/explain`, {
+      const res = await fetch(`${API_BASE}/api/explain`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

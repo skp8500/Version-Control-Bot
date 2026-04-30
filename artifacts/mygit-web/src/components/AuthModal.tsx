@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import type { AuthUser } from "@/hooks/useAuth";
 
+import { API_BASE } from "@/lib/api";
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 interface AuthModalProps {
@@ -26,7 +27,7 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
       const endpoint = tab === "login" ? "/api/auth/login" : "/api/auth/register";
       const body = tab === "login" ? { username, password } : { username, email, password };
 
-      const res = await fetch(`${BASE}${endpoint}`, {
+      const res = await fetch(`${API_BASE}${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
