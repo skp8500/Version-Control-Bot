@@ -257,7 +257,7 @@ async function executeCommand(cmd: string): Promise<string> {
     case "merge": {
       const hash = args[1];
       if (!hash) return "Usage: mygit merge <commit-hash>\nTip: use 'mygit log' to see available commit hashes.";
-      const result = await mergeCommitDb(hash);
+      const result = await mergeCommitDb(String(hash));
       return result.message;
     }
 
