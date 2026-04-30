@@ -6,6 +6,7 @@ import NotFound from "@/pages/not-found";
 import Workspace from "@/pages/Workspace";
 import Dashboard from "@/pages/Dashboard";
 import RepoView from "@/pages/RepoView";
+import GlobalTerminal from "@/components/GlobalTerminal";
 
 const queryClient = new QueryClient();
 
@@ -27,6 +28,7 @@ function App() {
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
           <Router />
         </WouterRouter>
+        <GlobalTerminal />
         <Toaster />
       </TooltipProvider>
     </QueryClientProvider>
