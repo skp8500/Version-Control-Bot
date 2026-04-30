@@ -112,6 +112,27 @@ JWT stored in `localStorage` as `mygit_token`. User info stored as `mygit_user`.
 
 ---
 
+## Local host deployment
+
+Full guide: [`LOCAL-SETUP.md`](./LOCAL-SETUP.md). TL;DR:
+
+```bash
+pnpm install
+cp .env.example .env       # then fill in DATABASE_URL + SESSION_SECRET
+pnpm db:push               # create tables
+pnpm dev                   # boots API (3001) + web (5000)
+```
+
+Open http://localhost:5000.
+
+Hardcoded `/home/runner/workspace/...` paths have been removed — the API now
+defaults `MYGIT_REPO_PATH` and `MYGIT_WORKSPACES_ROOT` to folders inside
+the project root, so the same code runs unchanged on Replit and laptops.
+The start script (`scripts/start.sh`) auto-loads `.env` if present and is
+executable from any directory.
+
+---
+
 ## Deployment
 
 ### Neon (Database)

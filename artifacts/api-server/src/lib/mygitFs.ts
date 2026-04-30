@@ -6,10 +6,11 @@ import fs from "fs/promises";
 import path from "path";
 
 // ── Repo root ─────────────────────────────────────────────────────────────────
-// Configurable via env var; defaults to workspace-level mygit-workspace/
+// Configurable via env var; defaults to a `mygit-workspace/` folder created
+// next to the running process (works on Replit, local laptops, CI, etc.).
 export const REPO_ROOT =
   process.env.MYGIT_REPO_PATH ??
-  path.join("/home/runner/workspace", "mygit-workspace");
+  path.resolve(process.cwd(), "mygit-workspace");
 
 const MYGIT_DIR = () => path.join(REPO_ROOT, ".mygit");
 const COMMITS_DIR = () => path.join(MYGIT_DIR(), "commits");

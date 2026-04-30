@@ -22,7 +22,8 @@ const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
 const WORKSPACES_ROOT =
-  process.env.MYGIT_WORKSPACES_ROOT ?? "/home/runner/workspace/mygit-workspaces";
+  process.env.MYGIT_WORKSPACES_ROOT ??
+  path.resolve(process.cwd(), "mygit-workspaces");
 
 type AuthReq = { user?: JwtPayload };
 
