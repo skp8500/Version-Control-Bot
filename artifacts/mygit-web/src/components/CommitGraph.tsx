@@ -60,6 +60,7 @@ interface CommitGraphProps {
   onNodeClick?: (hash: string) => void;
 }
 
+import { API_BASE } from "@/lib/api";
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -110,7 +111,7 @@ export default function CommitGraph({ repoId, onNodeClick }: CommitGraphProps) {
     setPopup(null);
     setFilePanel(null);
 
-    fetch(`${BASE}/api/repos/${repoId}/graph`)
+    fetch(`${API_BASE}/api/repos/${repoId}/graph`)
       .then(async (res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = (await res.json()) as GraphResponse;
@@ -275,7 +276,7 @@ export default function CommitGraph({ repoId, onNodeClick }: CommitGraphProps) {
       onNodeClick?.(d.hash);
       setFilePanel(null);
       try {
-        const res = await fetch(`${BASE}/api/repos/${repoId}/diff/${d.hash}`);
+        const res = await fetch(`${API_BASE}/api/repos/${repoId}/diff/${d.hash}`);
         const diff = res.ok ? ((await res.json()) as DiffData) : null;
         setPopup({ node: d, diff });
       } catch {
@@ -370,7 +371,7 @@ export default function CommitGraph({ repoId, onNodeClick }: CommitGraphProps) {
       e.stopPropagation();
       setPopup(null);
       try {
-        const res = await fetch(`${BASE}/api/repos/${repoId}/files?path=${encodeURIComponent(d.path)}`);
+        const res = await fetch(`${API_BASE}/api/repos/${repoId}/files?path=${encodeURIComponent(d.path)}`);
         const data = res.ok ? ((await res.json()) as { content: string }) : null;
         setFilePanel({ node: d, content: data?.content ?? "" });
       } catch {

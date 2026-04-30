@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 
+import { API_BASE } from "@/lib/api";
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 export interface AuthUser {
@@ -61,7 +62,7 @@ export function useAuth() {
   const authFetch = useCallback(
     async (url: string, options: RequestInit = {}): Promise<Response> => {
       const token = getStoredToken();
-      return fetch(`${BASE}${url}`, {
+      return fetch(`${API_BASE}${url}`, {
         ...options,
         headers: {
           ...(options.headers ?? {}),

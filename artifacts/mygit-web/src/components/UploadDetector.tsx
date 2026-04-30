@@ -3,6 +3,7 @@ import { Upload, FileCode, Loader2, Check, X, FolderOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getStoredToken } from "@/hooks/useAuth";
 
+import { API_BASE } from "@/lib/api";
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 interface DetectionResult {
@@ -41,7 +42,7 @@ export default function UploadDetector({ repoId, onUploadComplete }: UploadDetec
       form.append("archive", file);
       form.append("message", commitMsg);
 
-      const res = await fetch(`${BASE}/api/repos/${repoId}/upload`, {
+      const res = await fetch(`${API_BASE}/api/repos/${repoId}/upload`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token ?? ""}` },
         body: form,

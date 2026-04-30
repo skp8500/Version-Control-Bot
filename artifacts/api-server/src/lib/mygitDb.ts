@@ -199,6 +199,65 @@ export async function checkoutCommitDb(commitId: string): Promise<void> {
   await syncRepoHead();
 }
 
+// ── Merge ────────────────────────────────────────────────────────────────────
+export async function mergeCommitDb(targetHash: string): Promise<{ merged: string[]; message: string }> {
+  const repo = await getRepo();
+  if (!repo) throw new Error("Not a mygit repository. Run 'mygit init' first.");
+
+  // Find the target commit in DB
+  const commitRows = await db
+    .select()
+    .from(commits)
+    .where(and(eq(commits.repoId, repo.id), eq(commits.hash, targetHash)))
+    .limit(1);
+
+  // Try prefix match if exact not found
+  if (commitRows.length === 0) {
+    // Try log to find partial hash
+    const { commits: logEntries } = await getLogDb();
+    const match = logEntries.find((c) => c.hash.startsWith(targetHash));
+    if (!match) throw new Error(`Commit '${targetHash}' not found.`);
+    return mergeCommitDb(match.hash);
+  }
+
+  const targetCommit = commitRows[0];
+
+  // Get files from that commit
+  const files = await db
+    .select()
+    .from(commitFiles)
+    .where(eq(commitFiles.commitId, targetCommit.id));
+
+  if (files.length === 0) throw new Error(`Commit '${targetHash.slice(0, 8)}' has no files to merge.`);
+
+  // Write each file to working directory and stage it
+  const merged: string[] = [];
+  for (const file of files) {
+    await saveFileDb(file.path, file.content);
+    await stageFileDb(file.path);
+    merged.push(file.path);
+  }
+
+  return {
+    merged,
+    message: `Merged ${merged.length} file(s) from commit ${targetHash.slice(0, 8)} into working tree.\nMerged: ${merged.join(", ")}\nFiles are staged — run 'mygit commit -m <message>' to complete the merge.`,
+  };
+}
+
+// ── Reset staging area ────────────────────────────────────────────────────────
+export async function resetStagedDb(): Promise<number> {
+  const repo = await getRepo();
+  if (!repo) return 0;
+  const staged = await readIndex();
+  // Clear the filesystem index
+  const { writeFileSync } = await import("fs");
+  const { join } = await import("path");
+  writeFileSync(join(REPO_ROOT, ".mygit", "index"), "");
+  // Clear DB staged files
+  await db.delete(stagedFiles).where(eq(stagedFiles.repoId, repo.id));
+  return staged.length;
+}
+
 // ── Diff ─────────────────────────────────────────────────────────────────────
 export { getCommitDiff };
 

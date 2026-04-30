@@ -39,10 +39,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 
+import { API_BASE } from "@/lib/api";
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 async function apiPost(path: string, body: unknown) {
-  const r = await fetch(`${BASE}${path}`, {
+  const r = await fetch(`${API_BASE}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -51,7 +52,7 @@ async function apiPost(path: string, body: unknown) {
 }
 
 async function apiGet(path: string) {
-  const r = await fetch(`${BASE}${path}`);
+  const r = await fetch(`${API_BASE}${path}`);
   return r.json();
 }
 

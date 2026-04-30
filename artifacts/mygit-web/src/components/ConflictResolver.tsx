@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { getStoredToken } from "@/hooks/useAuth";
 
+import { API_BASE } from "@/lib/api";
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 interface Conflict {
@@ -34,7 +35,7 @@ export default function ConflictResolver({ repoId, conflicts, onResolved }: Conf
     setResolving(true);
     try {
       const token = getStoredToken();
-      await fetch(`${BASE}/api/repos/${repoId}/resolve`, {
+      await fetch(`${API_BASE}/api/repos/${repoId}/resolve`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -17,6 +17,7 @@ import AuthModal from "@/components/AuthModal";
 import { useAuth, type AuthUser } from "@/hooks/useAuth";
 import { getStoredToken } from "@/hooks/useAuth";
 
+import { API_BASE } from "@/lib/api";
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 interface Repo {
@@ -57,7 +58,7 @@ export default function Dashboard() {
   const fetchRepos = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${BASE}/api/repos`);
+      const res = await fetch(`${API_BASE}/api/repos`);
       const data = (await res.json()) as { repos: Repo[] };
       setRepos(data.repos ?? []);
     } catch {
@@ -72,7 +73,7 @@ export default function Dashboard() {
     setCreating(true);
     try {
       const token = getStoredToken();
-      const res = await fetch(`${BASE}/api/repos`, {
+      const res = await fetch(`${API_BASE}/api/repos`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ name: newName.trim(), description: newDesc.trim() }),
@@ -97,7 +98,7 @@ export default function Dashboard() {
     form.append("archive", file);
     form.append("message", "Initial upload");
     try {
-      const res = await fetch(`${BASE}/api/repos/${repoId}/upload`, {
+      const res = await fetch(`${API_BASE}/api/repos/${repoId}/upload`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token ?? ""}` },
         body: form,
