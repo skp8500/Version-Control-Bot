@@ -219,7 +219,7 @@ router.get("/repos/:id/graph", optionalAuth, async (req, res) => {
 // ── GET /api/repos/:id/diff/:commitHash — public ─────────────────────────────
 router.get("/repos/:id/diff/:commitHash", optionalAuth, async (req, res) => {
   const repoId = Number(req.params.id);
-  const { commitHash } = req.params;
+  const commitHash = String(req.params.commitHash);
 
   const commitRow = await db
     .select()
